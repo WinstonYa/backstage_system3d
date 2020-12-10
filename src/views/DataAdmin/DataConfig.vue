@@ -1,0 +1,568 @@
+<template>
+  <div>
+    <!-- 面包屑导航区域 -->
+    <el-breadcrumb separator-class="el-icon-arrow-right">
+      <el-breadcrumb-item :to="{ path: '/welcome' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item>数据管理</el-breadcrumb-item>
+      <el-breadcrumb-item>数据配置</el-breadcrumb-item>
+    </el-breadcrumb>
+
+    <el-card class="data-list-card" :style="curHeight">
+      <div class="el-transfer-panel">
+        <p class="el-transfer-panel__header">
+          <label class="el-checkbox">
+            <span class="el-checkbox__label">数据列表</span>
+            <el-button
+              type="primary"
+              size="mini"
+              plain
+              @click="handleAddDataDialogShow"
+              >新增数据</el-button
+            >
+          </label>
+        </p>
+        <div class="el-transfer-panel__body">
+          <label
+            class="el-checkbox el-transfer-panel__item"
+            v-for="(item, index) in dataList"
+            :key="index"
+          >
+            <el-radio
+              v-model="radio"
+              :label="index"
+              @change="handleChangeDataList(item.name)"
+              >{{ item.name }}</el-radio
+            >
+            <i @click="deleteNode" class="el-icon-error"></i>
+          </label>
+        </div>
+      </div>
+      <div class="el-transfer-panel data-tree">
+        <p class="el-transfer-panel__header">
+          <label class="el-checkbox">
+            <span class="el-checkbox__label">数据目录</span>
+          </label>
+        </p>
+        <div class="el-transfer-panel__body">
+          <div class="block">
+            <el-tree
+              :data="data"
+              ref="tree"
+              node-key="id"
+              default-expand-all
+              :expand-on-click-node="false"
+              check-on-click-node
+              @node-click="getTreeData"
+              check-strictly
+              highlight-current
+            >
+              <span class="custom-tree-node" slot-scope="{ data }">
+                <span>{{ data.title }}</span>
+                <span>
+                  <el-button
+                    type="text"
+                    size="mini"
+                    @click="() => addNode(data)"
+                  >
+                    增加子节点
+                  </el-button>
+                  <el-button
+                    type="text"
+                    size="mini"
+                    @click="() => editNode(data)"
+                  >
+                    修改
+                  </el-button>
+                  <el-button
+                    type="text"
+                    size="mini"
+                    @click="() => removeNode(data)"
+                  >
+                    删除
+                  </el-button>
+                </span>
+              </span>
+            </el-tree>
+          </div>
+        </div>
+      </div>
+      <div class="el-transfer-panel data-content">
+        <p class="el-transfer-panel__header">
+          <label class="el-checkbox">
+            <span class="el-checkbox__label">数据内容</span>
+            <el-button
+              type="primary"
+              size="mini"
+              plain
+              @click="addRootNode"
+              v-if="addRootBtn"
+              >添加根节点</el-button
+            >
+          </label>
+        </p>
+        <div class="el-transfer-panel__body_content">
+          <el-form
+            :model="treeNodeData"
+            ref="treeNodeData"
+            style="width: 450px;margin-top:20px;"
+            label-position="left"
+            label-width="100px"
+            v-if="showTreeData == 'show' && addRootBtn"
+          >
+            <el-form-item label="能否展开">
+              <el-switch
+                v-model="treeNodeData.expand"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item label="是否为根节点">
+              <el-switch
+                v-model="treeNodeData.root"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item label="名称" v-show="!treeNodeData.root">
+              <el-input v-model="treeNodeData.name"></el-input>
+            </el-form-item>
+            <el-form-item label="标题">
+              <el-input v-model="treeNodeData.title"></el-input>
+            </el-form-item>
+            <el-form-item label="类型" v-show="!treeNodeData.root">
+              <el-select v-model="treeNodeData.type" placeholder="请选择">
+                <el-option
+                  v-for="item in typeOptions"
+                  :key="item.label"
+                  :label="item.label"
+                  :value="item.label"
+                >
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="数据" v-show="!treeNodeData.root">
+              <el-input v-model="treeNodeData.data"></el-input>
+            </el-form-item>
+            <el-form-item label="链接地址" v-show="!treeNodeData.root">
+              <el-input v-model="treeNodeData.url"></el-input>
+            </el-form-item>
+            <el-form-item label="是否选中" v-show="!treeNodeData.root">
+              <el-switch
+                v-model="treeNodeData.checked"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item v-if="editNodeShow">
+              <el-button type="primary" size="small" @click="submitEditNode"
+                >确认修改</el-button
+              >
+              <el-button size="small" @click="cancelEditNode">取消</el-button>
+            </el-form-item>
+          </el-form>
+          <!-- 添加根节点 -->
+          <el-form
+            :model="addTreeNodeData"
+            ref="addTreeNodeData"
+            style="width: 400px;margin-top:20px;"
+            label-position="left"
+            label-width="100px"
+            v-else-if="showTreeData == 'addShow'"
+          >
+            <el-form-item label="标题">
+              <el-input v-model="addTreeNodeData.title"></el-input>
+            </el-form-item>
+            <el-form-item label="能否展开">
+              <el-switch
+                v-model="addTreeNodeData.expand"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item label="是否为根节点">
+              <el-switch
+                v-model="addTreeNodeData.root"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" size="small" @click="submitAddNode"
+                >确认添加</el-button
+              >
+              <el-button size="small" @click="cancelAddNode">取消</el-button>
+            </el-form-item>
+          </el-form>
+          <!-- 添加一个子节点 -->
+          <el-form
+            :model="childrenNodeData"
+            ref="childrenNodeData"
+            style="width: 450px;margin-top:20px;"
+            label-position="left"
+            label-width="100px"
+            v-if="showTreeData == 'addchildrenShow'"
+          >
+            <el-form-item label="能否展开">
+              <el-switch
+                v-model="childrenNodeData.expand"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item label="是否为根节点">
+              <el-switch
+                v-model="childrenNodeData.root"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item label="名称">
+              <el-input v-model="childrenNodeData.name"></el-input>
+            </el-form-item>
+            <el-form-item label="标题">
+              <el-input v-model="childrenNodeData.title"></el-input>
+            </el-form-item>
+            <el-form-item label="类型">
+              <el-select v-model="childrenNodeData.type" placeholder="请选择">
+                <el-option
+                  v-for="item in typeOptions"
+                  :key="item.label"
+                  :label="item.label"
+                  :value="item.label"
+                >
+                </el-option>
+              </el-select>
+            </el-form-item>
+            <el-form-item label="数据">
+              <el-input v-model="childrenNodeData.data"></el-input>
+            </el-form-item>
+            <el-form-item label="链接地址">
+              <el-input v-model="childrenNodeData.url"></el-input>
+            </el-form-item>
+            <el-form-item label="是否选中">
+              <el-switch
+                v-model="childrenNodeData.checked"
+                active-color="#13ce66"
+                inactive-color="#ff4949"
+              >
+              </el-switch>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" size="small" @click="addChildrenNode"
+                >确认添加</el-button
+              >
+              <el-button size="small" @click="cancelAddNode">取消</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </div>
+    </el-card>
+
+    <el-dialog
+      title="新增数据列表"
+      :visible.sync="addDialogVisible"
+      width="30%"
+      @close="handleCloseDialog"
+    >
+      <el-form
+        ref="dataRuleForm"
+        :model="dataRuleForm"
+        :rules="dataRules"
+        label-width="80px"
+      >
+        <el-form-item label="数据名称" prop="dataName">
+          <el-input v-model="dataRuleForm.dataName"></el-input>
+        </el-form-item>
+      </el-form>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="addDialogVisible = false">取 消</el-button>
+        <el-button type="primary" @click="handleAddData">立即创建</el-button>
+      </span>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+// let id = 1;
+import DataList from "@/globals/service/dataList.js";
+export default {
+  data() {
+    return {
+      data: [],
+      curHeight: {
+        height: ""
+      },
+      radio: false,
+      dataList: [],
+      addDialogVisible: false,
+      addRootBtn: false,
+      dataRuleForm: {
+        dataName: ""
+      },
+      dataRules: {
+        dataName: [
+          { required: true, message: "请输入数据名称", trigger: "blur" }
+        ]
+      },
+      fileName: "", //文件名
+      treeNodeData: {}, //渲染数据对象
+      addTreeNodeData: {}, //根节点对象
+      childrenNodeData: {}, //子节点对象
+      typeOptions: [
+        {
+          label: "3DTiles"
+        },
+        {
+          label: "DEM"
+        }
+      ],
+      editNodeShow: false,
+      id: "",
+      showTreeData: "show" //判断表单显示
+    };
+  },
+  created() {
+    this.getDataList();
+    this.setTableHeight();
+    window.onresize = () => {
+      this.setTableHeight();
+    };
+  },
+  methods: {
+    //获取json数据
+    getDataList() {
+      DataList.getDataList().then(res => {
+        if (res.status == 200) {
+          this.dataList = res.data;
+        }
+      });
+    },
+    //添加一个子节点
+    addNode(data) {
+      this.showTreeData = "addchildrenShow";
+      if (data.id) {
+        this.childrenNodeData.pId = data.id;
+        this.childrenNodeData.fileName = this.fileName;
+      }
+    },
+    //添加根节点
+    addRootNode() {
+      this.addTreeNodeData.pId = "";
+      this.addTreeNodeData.fileName = this.fileName;
+      this.showTreeData = "addShow";
+    },
+    //确认添加根节点
+    submitAddNode() {
+      DataList.addJsonNode(this.addTreeNodeData).then(res => {
+        console.log(res);
+        if (res.status == 200) {
+          this.$message.success("添加节点成功");
+          this.showTreeData = "show";
+          let value = this.addTreeNodeData.fileName;
+          this.handleChangeDataList(value);
+        }
+      });
+    },
+
+    //确认添加子节点
+    addChildrenNode() {
+      DataList.addJsonNode(this.childrenNodeData).then(res => {
+        console.log(res);
+        if (res.status == 200) {
+          this.$message.success("添加节点成功");
+          this.showTreeData = "show";
+          let value = this.childrenNodeData.fileName;
+          this.handleChangeDataList(value);
+        }
+      });
+    },
+    //取消添加节点
+    cancelAddNode() {
+      this.showTreeData = "show";
+    },
+
+    //确认修改节点
+    submitEditNode() {
+      this.treeNodeData.fileName = this.fileName;
+      console.log(this.treeNodeData);
+      DataList.editJsonNode(this.treeNodeData).then(res => {
+        if (res.status == 200) {
+          this.$message.success("修改成功");
+          this.editNodeShow = false;
+        }
+      });
+    },
+    //取消修改节点
+    cancelEditNode() {
+      this.editNodeShow = false;
+    },
+
+    //修改节点
+    editNode(data) {
+      console.log(data);
+      this.id = data.id;
+      this.editNodeShow = true;
+    },
+    //删除子节点
+    removeNode(data) {
+      let id = data.id;
+      let fileName = this.fileName;
+      this.$confirm(`是否删除该节点?`, "提示", {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning"
+      })
+        .then(() => {
+          DataList.delJsonChildrenNode(id, fileName).then(res => {
+            console.log(res);
+            if (res.status == 200) {
+              this.handleChangeDataList(fileName);
+              this.$message.success("删除成功");
+            }
+          });
+        })
+        .catch(() => {
+          this.$message({ type: "info", message: "已取消删除" });
+        });
+    },
+    //删除节点
+    deleteNode() {
+      this.$nextTick(() => {
+        this.$confirm(`是否删除该文件?`, "提示", {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning"
+        })
+          .then(() => {
+            DataList.delJsonFile(this.fileName).then(res => {
+              console.log(res);
+              if (res.status == 200) {
+                this.getDataList();
+                this.data = [];
+              }
+            });
+          })
+          .catch(() => {
+            this.$message({ type: "info", message: "已取消删除" });
+          });
+      });
+    },
+    //获取树节点数据
+    getTreeData(data) {
+      this.treeNodeData = data;
+    },
+    //新增一条data数据
+    handleAddData() {
+      this.$refs.dataRuleForm.validate(async valid => {
+        if (!valid)
+          return this.$message.error("信息填写不完整或不准确，请检查再提交！");
+        let fileName = this.dataRuleForm.dataName;
+        let formData = new FormData();
+        formData.append("fileName", fileName);
+        DataList.addDataItem(formData).then(res => {
+          if (res.status == 200) {
+            this.addDialogVisible = false;
+            this.$message.success("新增数据成功");
+            this.dataRuleForm = {};
+            this.getDataList();
+          } else if (res.status == 500) {
+            this.$message.warning("已存在同名文件或文件夹，请重新填写！");
+            this.dataRuleForm.dataName = "";
+          }
+        });
+      });
+    },
+    //显示新增数据弹框
+    handleAddDataDialogShow() {
+      this.addDialogVisible = true;
+    },
+    //关闭新增数据弹框
+    handleCloseDialog() {
+      this.dataRuleForm = {};
+      this.$refs.dataRuleForm.clearValidate();
+      this.getDataList();
+    },
+    //选择json文件事件
+    handleChangeDataList(value) {
+      this.addRootBtn = value ? true : false;
+      this.treeNodeData.fileName = value;
+      this.fileName = value;
+      let formData = new FormData();
+      formData.append("fileName", value);
+      DataList.getCataContent(formData).then(res => {
+        if (res.status === 200) {
+          this.data = res.data;
+        } else {
+          this.data = [];
+        }
+      });
+    },
+    // 设定表格高度
+    setTableHeight() {
+      let h =
+        document.documentElement.clientHeight || document.body.clientHeight;
+      this.curHeight.height = h - 120 + "px";
+    }
+  }
+};
+</script>
+<style lang="less" scoped>
+.data-list-card {
+  display: flex;
+  white-space: nowrap;
+}
+
+.el-transfer-panel {
+  height: 100%;
+}
+
+.el-checkbox__label {
+  padding-right: 10px;
+}
+
+.el-transfer-panel__body {
+  overflow: auto;
+  height: 100%;
+}
+.el-transfer-panel__body_content {
+  overflow: auto;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.el-transfer-panel.data-tree {
+  width: 300px;
+  margin-left: 20px;
+}
+
+.custom-tree-node {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  padding-right: 8px;
+}
+
+.el-transfer-panel.data-content {
+  width: 600px;
+  margin-left: 20px;
+}
+
+.el-icon-error {
+  float: right;
+  line-height: 30px;
+}
+
+.el-checkbox {
+  margin-right: 30px;
+}
+</style>
